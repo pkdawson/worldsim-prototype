@@ -48,8 +48,9 @@ int main()
 {
     // Make sure the compiler isn't doing anything silly
     static_assert(sizeof(PositionData) <= 24, "Wrong size: PositionData");
-    static_assert(sizeof(Terrain) == sizeof(uint8_t), "Wrong size: Terrain");
+    static_assert(sizeof(TerrainType) == sizeof(uint8_t), "Wrong size: Terrain");
     static_assert(sizeof(EntityHandle) == 8, "Wrong size: EntityHandle");
+    static_assert(sizeof(ComponentHandle) == 8, "Wrong size: ComponentHandle");
 
     cout << "Fast version: " << endl;
     test();

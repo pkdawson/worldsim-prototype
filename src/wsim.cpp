@@ -17,7 +17,7 @@ World::World(uint32_t width, uint32_t height)
         for (int cx = 0; cx < static_cast<int>(_chunks.getWidth()); ++cx)
         {
             auto& m = _chunks(cx, cy).terrain;
-            m.fill(Terrain{ TerrainType::Grass });
+            m.fill(TerrainType::Grass);
         }
     }
 
@@ -29,7 +29,7 @@ World::World(uint32_t width, uint32_t height)
         for (uint32_t x = 0; x < _width; ++x)
         {
             if (x == wall_x || y == wall_y)
-                at(x, y).type = TerrainType::Wall;
+                at(x, y) = TerrainType::Wall;
         }
     }
 
@@ -47,7 +47,7 @@ WorldChunk& World::chunkAt(int x, int y)
     return _chunks(x / CHUNK_SIZE, y / CHUNK_SIZE);
 }
 
-Terrain& World::at(int x, int y)
+TerrainType& World::at(int x, int y)
 {
     int relx = x % CHUNK_SIZE;
     int rely = y % CHUNK_SIZE;
@@ -100,7 +100,7 @@ void World::move(Entity* e, int x, int y)
 
 bool World::tryMove(Entity* e, int x, int y)
 {
-    TerrainType t = at(x, y).type;
+    TerrainType t = at(x, y);
 
     if (t == TerrainType::Wall)
         return false;
@@ -217,7 +217,7 @@ void World::populate()
             rx = distx(rng);
             ry = disty(rng);
 
-            if (this->at(rx, ry).type != TerrainType::Grass)
+            if (this->at(rx, ry) != TerrainType::Grass)
                 continue;
 
             vector<EntityHandle> entities = this->getEntitiesAt(rx, ry);
@@ -245,7 +245,7 @@ void World::populate()
             rx = distx(rng);
             ry = disty(rng);
 
-            if (this->at(rx, ry).type != TerrainType::Grass)
+            if (this->at(rx, ry) != TerrainType::Grass)
                 continue;
 
             ok = true;

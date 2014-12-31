@@ -35,3 +35,6 @@
 *.vsp
 VS/windeps/SDL2/
 .sconsign.dblite
+VS/_intermediate/
+VS/_output/
+*.suo

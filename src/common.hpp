@@ -39,10 +39,10 @@ enum class ComponentId : uint8_t
     Pathfinding,
 };
 
-inline bool operator<(const ComponentId lhs, const ComponentId rhs)
-{
-    return static_cast<uint8_t>(lhs) < static_cast<uint8_t>(rhs);
-}
+//inline bool operator<(const ComponentId lhs, const ComponentId rhs)
+//{
+//    return static_cast<uint8_t>(lhs) < static_cast<uint8_t>(rhs);
+//}
 
 enum class ComponentFlags : uint8_t
 {
@@ -52,12 +52,30 @@ enum class ComponentFlags : uint8_t
 
 struct alignas(8) ComponentHandleData
 {
-    bitset<8> flags;
+    ComponentId type;
+    uint8_t flags;
     uint8_t counter;
     uint32_t index;
 };
 
-typedef uint32_t ComponentHandle;
+struct alignas(8) ComponentHandle
+{
+    union
+    {
+        ComponentHandleData data;
+        uint64_t raw;
+    };
+
+    ComponentHandle()
+    {
+        raw = 0LL;
+    }
+
+    bool operator==(const ComponentHandle& rhs)
+    {
+        return raw == rhs.raw;
+    }
+};
 
 struct alignas(8) EntityHandleData
 {
@@ -90,6 +108,41 @@ struct alignas(8) EntityHandle
     }
 };
 
+template<typename TObject, typename THandle>
+struct HandleTable
+{
+    vector<TObject> objects;
+
+    vector<uint32_t> indices;
+    vector<uint8_t> counters;
+
+    vector<uint32_t> freeIndices;
+
+    THandle makeObject()
+    {
+        objects.emplace_back();
+        THandle h;
+        h.data.index = objects.size() - 1;
+        h.data.counter = 0;
+        return h;
+    }
+
+    TObject* getObject(const THandle& h)
+    {
+        return &objects[h.data.index];
+    }
+
+    void reserve(size_t num)
+    {
+
+    }
+
+    void clear()
+    {
+
+    }
+};
+
 enum class TerrainType : uint8_t
 {
     None,
@@ -101,7 +154,9 @@ enum class TerrainType : uint8_t
 struct Terrain
 {
     // Material mat;
-    TerrainType type;
+    // TerrainType type;
+
+    uint16_t movementCost;
 };
 
 struct Position

@@ -59,16 +59,17 @@ public:
         return instance.get();
     }
 
-    ComponentHandle addComponent(EntityHandle& h)
+    ComponentHandle addComponent(EntityHandle& eh)
     {
-        _components.emplace_back();
-        _components[_components.size() - 1].parent = h;
-        return static_cast<ComponentHandle>(_components.size() - 1);
+        ComponentHandle ch = _htable.makeObject();
+        T* newComponent = _htable.getObject(ch);
+        newComponent->parent = eh;
+        return ch;
     }
 
     T* getComponent(ComponentHandle h)
     {
-        return &_components[static_cast<size_t>(h)];
+        return _htable.getObject(h);
     }
 
     uint16_t addPrefabComponent(uint16_t pfhandle)
@@ -79,22 +80,22 @@ public:
 
     auto begin()
     {
-        return _components.begin();
+        return _htable.objects.begin();
     }
 
     auto end()
     {
-        return _components.end();
+        return _htable.objects.end();
     }
 
     void reserve(size_t num)
     {
-        _components.reserve(num);
+        _htable.reserve(num);
     }
 
     void clear() override
     {
-        _components.clear();
+        _htable.clear();
     }
 
     void sort() override
@@ -108,12 +109,12 @@ public:
 
     vector<T>& getData()
     {
-        return _components;
+        return _htable.objects;
     }
 
 private:
     ComponentManager() {}
-    vector<T> _components;
+    HandleTable<T, ComponentHandle> _htable;
     vector<T> _prefabComponents;
 };
 
@@ -287,7 +288,7 @@ const static uint32_t CHUNK_SIZE = 250;
 struct WorldChunk
 {
     vector<EntityHandle> entities;
-    Matrix<Terrain> terrain;
+    Matrix<TerrainType> terrain;
     BitsetMatrix<CHUNK_SIZE, CHUNK_SIZE> blocked; // TODO: write SparseMatrixBool
 
     WorldChunk() : terrain(CHUNK_SIZE, CHUNK_SIZE)
@@ -301,7 +302,7 @@ public:
     World(uint32_t width, uint32_t height);
 
     WorldChunk& chunkAt(int x, int y);
-    Terrain& at(int x, int y);
+    TerrainType& at(int x, int y);
     uint32_t getWidth() const;
     uint32_t getHeight() const;
     void addEntity(Entity* e);
