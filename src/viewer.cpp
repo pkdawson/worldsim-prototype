@@ -1,6 +1,7 @@
 #define SDL_MAIN_HANDLED
 #include <SDL.h>
 #pragma comment(lib, "SDL2.lib")
+#pragma comment(lib, "libwsim.lib")
 
 #include "common.hpp"
 #include "wsim.hpp"
@@ -20,8 +21,8 @@ int main()
         "worldsim viewer",
         SDL_WINDOWPOS_CENTERED,
         SDL_WINDOWPOS_CENTERED,
-        winSize,
-        winSize,
+        static_cast<int>(winSize),
+        static_cast<int>(winSize),
         SDL_WINDOW_SHOWN
         );
 
@@ -86,10 +87,10 @@ int main()
         for (EntityHandle eh : chunk.entities)
         {
             Entity* e = EM->getEntity(eh);
-            PositionData* pos = e->getComponent<PositionData>();
+            Position& pos = e->getComponent<PositionData>()->pos;
 
-            r.x = pos->x - offset;
-            r.y = pos->y - offset;
+            r.x = pos.x - offset;
+            r.y = pos.y - offset;
 
             if (e->hasComponent<PlantData>()) {
                 SDL_SetRenderDrawColor(renderer, 0, 255, 0, 255);
@@ -116,5 +117,7 @@ end:
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
     SDL_Quit();
+
+    EM->clear();
     return 0;
 }

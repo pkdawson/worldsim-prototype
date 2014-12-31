@@ -1,25 +1,8 @@
 #include "common.hpp"
-
-const ComponentId PositionData::id = 1;
-const ComponentId MovableData::id = 2;
-const ComponentId PlantData::id = 3;
-const ComponentId InventoryData::id = 4;
-const ComponentId CreatureData::id = 5;
-const ComponentId ActorData::id = 6;
-
-CM_COMPONENT_FUNCTIONS(PositionData);
-CM_COMPONENT_FUNCTIONS(MovableData);
-CM_COMPONENT_FUNCTIONS(PlantData);
-CM_COMPONENT_FUNCTIONS(InventoryData);
-CM_COMPONENT_FUNCTIONS(CreatureData);
-CM_COMPONENT_FUNCTIONS(ActorData);
-
 #include "wsim.hpp"
+#include "system.hpp"
 
-unique_ptr<ComponentManager> CM = make_unique<ComponentManager>();
-unique_ptr<EntityManager> EM = make_unique<EntityManager>();
-
-World::World(size_t width, size_t height)
+World::World(uint32_t width, uint32_t height)
 {
     if (width % CHUNK_SIZE != 0 || height % CHUNK_SIZE != 0) {
         throw std::runtime_error("World width and height must be multiples of " + to_string(CHUNK_SIZE));
@@ -38,16 +21,22 @@ World::World(size_t width, size_t height)
         }
     }
 
-    size_t wall_x = _width / 2 + 100;
-    size_t wall_y = _height / 2 + 100;
+    uint32_t wall_x = _width / 2 + 100;
+    uint32_t wall_y = _height / 2 + 100;
 
-    for (size_t y = 0; y < _height; ++y)
+    for (uint32_t y = 0; y < _height; ++y)
     {
-        for (size_t x = 0; x < _width; ++x)
+        for (uint32_t x = 0; x < _width; ++x)
         {
             if (x == wall_x || y == wall_y)
                 at(x, y).type = TerrainType::Wall;
         }
+    }
+
+    EM->clear();
+    // clear all ComponentManagers
+    for (auto& p : CMTable::getSingleton()->getTable()) {
+        p.second->clear();
     }
 }
 
@@ -68,36 +57,36 @@ Terrain& World::at(int x, int y)
     return chunk.terrain(relx, rely);
 }
 
-size_t World::getWidth() const
+uint32_t World::getWidth() const
 {
     return _width;
 }
 
-size_t World::getHeight() const
+uint32_t World::getHeight() const
 {
     return _height;
 }
 
 void World::addEntity(Entity* e)
 {
-    PositionData *pos = e->getComponent<PositionData>();
-    WorldChunk& chunk = chunkAt(pos->x, pos->y);
+    Position& pos = e->getComponent<PositionData>()->pos;
+    WorldChunk& chunk = chunkAt(pos.x, pos.y);
 
     chunk.entities.push_back(e->handle);
-    setBlocked(pos->x, pos->y, true);
+    setBlocked(pos.x, pos.y, true);
 }
 
 void World::move(Entity* e, int x, int y)
 {
-    PositionData *pos = e->getComponent<PositionData>();
-    WorldChunk& oldChunk = chunkAt(pos->x, pos->y);
+    Position& pos = e->getComponent<PositionData>()->pos;
+    WorldChunk& oldChunk = chunkAt(pos.x, pos.y);
     WorldChunk& newChunk = chunkAt(x, y);
 
-    setBlocked(pos->x, pos->y, false);
+    setBlocked(pos.x, pos.y, false);
     setBlocked(x, y, true);
 
-    pos->x = x;
-    pos->y = y;
+    pos.x = x;
+    pos.y = y;
 
     if (&oldChunk != &newChunk)
     {
@@ -131,9 +120,10 @@ vector<EntityHandle> World::getEntitiesAt(int x, int y)
     WorldChunk& chunk = chunkAt(x, y);
     for (EntityHandle h : chunk.entities)
     {
-        PositionData* pos = EM->getEntity(h)->getComponent<PositionData>();
-        if (pos) {
-            if (pos->x == x && pos->y == y)
+        PositionData* pd = EM->getEntity(h)->getComponent<PositionData>();
+        if (pd) {
+            Position& pos = pd->pos;
+            if (pos.x == x && pos.y == y)
                 rv.push_back(h);
         }
     }
@@ -153,13 +143,36 @@ void World::setBlocked(int x, int y, bool val)
     chunk.blocked.set(x % CHUNK_SIZE, y % CHUNK_SIZE, val);
 }
 
+EntityHandle World::findNearestPlant(const Position& src)
+{
+    EntityHandle rv;
+
+    uint32_t nearestDistance = -1;
+
+    WorldChunk& chunk = chunkAt(src.x, src.y);
+    for (EntityHandle& eh : chunk.entities)
+    {
+        Entity* e = EM->getEntity(eh);
+        if (e->hasComponent<PlantData>()) {
+            Position& pos = e->getComponent<PositionData>()->pos;
+            uint32_t d = src.distance_squared(pos);
+            if (d < nearestDistance) {
+                nearestDistance = d;
+                rv = e->handle;
+            }
+        }
+    }
+
+    return rv;
+}
+
 void World::inspect()
 {
     size_t numEntities = 0;
     size_t numChunks = 0;
-    for (size_t y = 0; y < _chunks.getHeight(); y++)
+    for (uint32_t y = 0; y < _chunks.getHeight(); y++)
     {
-        for (size_t x = 0; x < _chunks.getWidth(); x++)
+        for (uint32_t x = 0; x < _chunks.getWidth(); x++)
         {
             numChunks++;
             numEntities += _chunks(x, y).entities.size();
@@ -176,16 +189,26 @@ void World::populate()
     mt19937 rng;
     rng.seed(12345);
 
-    // size_t numChunks = (_width / CHUNK_SIZE) * (_height / CHUNK_SIZE);
+    size_t numActors = 50000;
+    size_t numPlants = 500000;
 
-    for (size_t i = 0; i < 50000; i++) {
+    EM->reserve(numActors + numPlants);
+    CM(PositionData)->reserve(numActors + numPlants);
+    CM(MovableData)->reserve(numActors);
+    CM(CreatureData)->reserve(numActors);
+    CM(InventoryData)->reserve(numActors);
+    CM(ActorData)->reserve(numActors);
+    CM(PathfindingData)->reserve(numActors);
+    CM(PlantData)->reserve(numPlants);
+
+    for (size_t i = 0; i < numActors; i++) {
         Entity* e = EM->makeEntity();
 
-        PositionData *pos = e->template addComponent<PositionData>();
-        e->template addComponent<MovableData>();
-        e->template addComponent<CreatureData>();
-        e->template addComponent<InventoryData>();
-        e->template addComponent<ActorData>();
+        Position& pos = e->addComponent<PositionData>()->pos;
+        e->addComponent<MovableData>();
+        e->addComponent<CreatureData>();
+        e->addComponent<InventoryData>();
+        e->addComponent<ActorData>();
 
         int rx, ry;
         bool ok = false;
@@ -204,16 +227,16 @@ void World::populate()
             ok = true;
         } while (!ok);
 
-        pos->x = rx;
-        pos->y = ry;
+        pos.x = rx;
+        pos.y = ry;
         this->addEntity(e);
     }
 
-    for (size_t i = 0; i < 500000; i++) {
+    for (size_t i = 0; i < numPlants; i++) {
         Entity* e = EM->makeEntity();
 
-        PositionData *pos = e->template addComponent<PositionData>();
-        e->template addComponent<PlantData>();
+        Position& pos = e->addComponent<PositionData>()->pos;
+        e->addComponent<PlantData>();
 
         int rx, ry;
         bool ok = false;
@@ -228,8 +251,8 @@ void World::populate()
             ok = true;
         } while (!ok);
 
-        pos->x = rx;
-        pos->y = ry;
+        pos.x = rx;
+        pos.y = ry;
         this->addEntity(e);
     }
 }
@@ -237,8 +260,13 @@ void World::populate()
 
 Game::Game(shared_ptr<World> world)
 {
-    _tick = 0;
+    _time = 0;
     _world = world;
+
+    _systems.emplace_back(new MovableSystem(_world));
+    _systems.emplace_back(new ActorSystem(_world));
+    _systems.emplace_back(new PlantSystem(_world));
+    _systems.emplace_back(new CreatureSystem(_world));
 
 #ifdef _OPENMP
     omp_set_dynamic(1);
@@ -246,115 +274,20 @@ Game::Game(shared_ptr<World> world)
 #endif
 }
 
-void Game::processMovables()
+Game::~Game()
 {
-    vector<MovableData>& mdvec = CM->getVector<MovableData>();
-    for (ComponentHandle h = 0; h < mdvec.size(); h++)
-    {
-        MovableData& md = mdvec[h];
-        Entity *e = EM->getEntity(CM->getParent<MovableData>(h));
-        PositionData *pos = e->getComponent<PositionData>();
-
-        if (pos->x < _world->getWidth() - 1 && pos->y < _world->getHeight() - 1)
-            _world->tryMove(e, pos->x + 1, pos->y + 1);
-    }
-}
-
-void Game::processPlants()
-{
-    for (PlantData& plant : CM->getVector<PlantData>())
-    {
-        plant.growth_status++;
-        if (plant.growth_status >= plant.growth_time)
-        {
-            plant.growth_status = 0;
-            if (plant.fruit < plant.max_fruit)
-                plant.fruit++;
-        }
-    }
-}
-
-void Game::processCreatures()
-{
-    vector<CreatureData>& cdvec = CM->getVector<CreatureData>();
-    for (ComponentHandle h = 0; h < cdvec.size(); h++)
-    {
-        CreatureData& creature = cdvec[h];
-        creature.hunger++;
-
-        if (creature.hunger > creature.eating_time) {
-            Entity *e = EM->getEntity(CM->getParent<CreatureData>(h));
-            e->valid = false;
-        }
-    }
-}
-
-void Game::processActors()
-{
-    for (ActorData& actor : CM->getVector<ActorData>())
-    {
-        if (actor.action == Action::Harvest)
-        {
-            // TODO: something
-        }
-    }
 }
 
 void Game::tick()
 {
-#pragma omp parallel sections
-            {
-#pragma omp section
-                processMovables();
-
-#pragma omp section
-                processPlants();
-
-#pragma omp section
-                processCreatures();
-            }
-            // TODO: remove invalid Entity's components
-            _tick++;
-}
-
-void Game::tick_bad()
-{
-    for (auto& eref : EM->getVector())
-    {
-        Entity* e = &eref;
-
-        if (!e->valid)
-            continue;
-
-        // The profiler shows a large majority of the run time is spent in
-        // hasComponent and getComponent
-
-        if (e->hasComponent<MovableData>()) {
-            PositionData *pos = e->getComponent<PositionData>();
-            if (pos->x < _world->getWidth() - 1 && pos->y < _world->getHeight() - 1)
-                _world->tryMove(e, pos->x + 1, pos->y + 1);
-        }
-
-        if (e->hasComponent<PlantData>()) {
-            PlantData *plant = e->getComponent<PlantData>();
-            plant->growth_status++;
-            if (plant->growth_status >= plant->growth_time)
-            {
-                plant->growth_status = 0;
-                if (plant->fruit < plant->max_fruit)
-                    plant->fruit++;
-            }
-        }
-
-        if (e->hasComponent<CreatureData>()) {
-            CreatureData *creature = e->getComponent<CreatureData>();
-            creature->hunger++;
-
-            if (creature->hunger > creature->eating_time) {
-                e->valid = false;
-            }
-        }
+    for (auto& sys : _systems) {
+        sys->tick();
     }
 
-    _tick++;
+    for (auto& sys : _systems) {
+        sys->waitForTick();
+    }
+
+    // TODO: remove invalid Entity's components
+    _time++;
 }

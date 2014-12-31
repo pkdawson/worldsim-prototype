@@ -1,0 +1,2 @@
+- For deterministic RNG, use the entity handle + time as seed.
+- Use copy-on-write for prefabs, with getComponentRO<T>()

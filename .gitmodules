@@ -1,0 +1,12 @@
+[submodule "deps/Catch"]
+	path = deps/Catch
+	url = https://github.com/philsquared/Catch.git
+[submodule "deps/rapidjson"]
+	path = deps/rapidjson
+	url = https://github.com/miloyip/rapidjson.git
+[submodule "deps/cereal"]
+	path = deps/cereal
+	url = https://github.com/USCiLab/cereal.git
+[submodule "deps/LuaBridge"]
+	path = deps/LuaBridge
+	url = https://github.com/vinniefalco/LuaBridge.git

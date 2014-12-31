@@ -1,11 +1,19 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 2013
-VisualStudioVersion = 12.0.31101.0
+# Visual Studio 14
+VisualStudioVersion = 14.0.22310.1
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "wsim", "wsim\wsim.vcxproj", "{A013C2D0-1441-4351-AAEB-C0042E156402}"
+	ProjectSection(ProjectDependencies) = postProject
+		{5D1F84D0-0627-47CB-B7EE-A5D2D6C4E1B1} = {5D1F84D0-0627-47CB-B7EE-A5D2D6C4E1B1}
+	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "wsim_viewer", "wsim_viewer\wsim_viewer.vcxproj", "{82AA3CC9-1B39-4531-A652-0E505B7FC93F}"
+	ProjectSection(ProjectDependencies) = postProject
+		{5D1F84D0-0627-47CB-B7EE-A5D2D6C4E1B1} = {5D1F84D0-0627-47CB-B7EE-A5D2D6C4E1B1}
+	EndProjectSection
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "libwsim", "libwsim\libwsim.vcxproj", "{5D1F84D0-0627-47CB-B7EE-A5D2D6C4E1B1}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -31,6 +39,14 @@ Global
 		{82AA3CC9-1B39-4531-A652-0E505B7FC93F}.Release|Win32.Build.0 = Release|Win32
 		{82AA3CC9-1B39-4531-A652-0E505B7FC93F}.Release|x64.ActiveCfg = Release|x64
 		{82AA3CC9-1B39-4531-A652-0E505B7FC93F}.Release|x64.Build.0 = Release|x64
+		{5D1F84D0-0627-47CB-B7EE-A5D2D6C4E1B1}.Debug|Win32.ActiveCfg = Debug|Win32
+		{5D1F84D0-0627-47CB-B7EE-A5D2D6C4E1B1}.Debug|Win32.Build.0 = Debug|Win32
+		{5D1F84D0-0627-47CB-B7EE-A5D2D6C4E1B1}.Debug|x64.ActiveCfg = Debug|x64
+		{5D1F84D0-0627-47CB-B7EE-A5D2D6C4E1B1}.Debug|x64.Build.0 = Debug|x64
+		{5D1F84D0-0627-47CB-B7EE-A5D2D6C4E1B1}.Release|Win32.ActiveCfg = Release|Win32
+		{5D1F84D0-0627-47CB-B7EE-A5D2D6C4E1B1}.Release|Win32.Build.0 = Release|Win32
+		{5D1F84D0-0627-47CB-B7EE-A5D2D6C4E1B1}.Release|x64.ActiveCfg = Release|x64
+		{5D1F84D0-0627-47CB-B7EE-A5D2D6C4E1B1}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

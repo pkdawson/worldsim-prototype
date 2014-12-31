@@ -4,6 +4,9 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup>
     <IncludePath>$(SolutionDir)windeps\SDL2\include;$(IncludePath)</IncludePath>
+    <IntDir>$(SolutionDir)_intermediate\$(ProjectName)\$(Platform)\$(Configuration)\</IntDir>
+    <OutDir>$(SolutionDir)_output\$(Platform)\$(Configuration)\</OutDir>
+    <LibraryPath>$(OutDir);$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup>
     <ClCompile>

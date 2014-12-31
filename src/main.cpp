@@ -1,11 +1,10 @@
 #include "common.hpp"
 #include "wsim.hpp"
 
-void test(std::function<void(Game*)> fun)
-{
-    CM = make_unique<ComponentManager>();
-    EM = make_unique<EntityManager>();
+#pragma comment(lib, "libwsim.lib")
 
+void test()
+{
     shared_ptr<World> w;
     try
     {
@@ -32,7 +31,7 @@ void test(std::function<void(Game*)> fun)
 
     // 60fps * 10
     for (int i = 0; i < 600; i++)
-        fun(g.get());
+        g->tick();
 
     auto t2 = high_resolution_clock::now();
     duration<double> time_span = duration_cast<duration<double>>(t2 - t1);
@@ -41,17 +40,23 @@ void test(std::function<void(Game*)> fun)
     cout << time_span.count() << " (" << int(600 / time_span.count()) << " fps)" << endl;
 }
 
+void fun()
+{
+}
+
 int main()
 {
     // Make sure the compiler isn't doing anything silly
-    assert(sizeof(PositionData) == 2*sizeof(uint32_t));
-    assert(sizeof(Terrain) == sizeof(uint8_t));
+    static_assert(sizeof(PositionData) <= 24, "Wrong size: PositionData");
+    static_assert(sizeof(Terrain) == sizeof(uint8_t), "Wrong size: Terrain");
+    static_assert(sizeof(EntityHandle) == 8, "Wrong size: EntityHandle");
 
     cout << "Fast version: " << endl;
-    test([](Game* g){ g->tick(); });
+    test();
     cout << endl;
-    cout << "Slower version: " << endl;
-    test([](Game* g){ g->tick_bad(); });
+
+    // Destroy entities before CMTable
+    EM->clear();
 
     return 0;
 }

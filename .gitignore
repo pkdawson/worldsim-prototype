@@ -34,3 +34,4 @@
 *.psess
 *.vsp
 VS/windeps/SDL2/
+.sconsign.dblite

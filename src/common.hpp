@@ -13,6 +13,9 @@
 #include <algorithm>
 #include <bitset>
 #include <list>
+#include <mutex>
+#include <condition_variable>
+#include <atomic>
 using namespace std;
 using namespace std::chrono;
 
@@ -23,24 +26,67 @@ using namespace std::chrono;
 #include "Matrix.hpp"
 #include "CompactMap.hpp"
 
-typedef uint8_t ComponentId;
+enum class ComponentId : uint8_t
+{
+    None,
+    Name,
+    Position,
+    Movable,
+    Plant,
+    Inventory,
+    Creature,
+    Actor,
+    Pathfinding,
+};
+
+inline bool operator<(const ComponentId lhs, const ComponentId rhs)
+{
+    return static_cast<uint8_t>(lhs) < static_cast<uint8_t>(rhs);
+}
+
+enum class ComponentFlags : uint8_t
+{
+    None,
+    Prefab = 1 << 0,
+};
+
+struct alignas(8) ComponentHandleData
+{
+    bitset<8> flags;
+    uint8_t counter;
+    uint32_t index;
+};
+
 typedef uint32_t ComponentHandle;
 
-struct EntityHandle
+struct alignas(8) EntityHandleData
 {
-    uint32_t index;
     uint8_t counter;
-    uint8_t __padding[3];
+    uint32_t index;
+};
 
-    EntityHandle(uint32_t idx=0, uint8_t count=0)
+struct alignas(8) EntityHandle
+{
+    union
     {
-        index = idx;
-        counter = count;
+        EntityHandleData data;
+        uint64_t raw;
+    };
+
+    EntityHandle()
+    {
+        raw = 0LL;
+    }
+
+    EntityHandle(uint32_t idx, uint8_t count=0)
+    {
+        data.index = idx;
+        data.counter = count;
     }
 
     bool operator==(const EntityHandle& rhs)
     {
-        return index == rhs.index && counter == rhs.counter;
+        return raw == rhs.raw;
     }
 };
 
@@ -54,30 +100,61 @@ enum class TerrainType : uint8_t
 
 struct Terrain
 {
+    // Material mat;
     TerrainType type;
+};
+
+struct Position
+{
+    int32_t x;
+    int32_t y;
+    int32_t z;
+
+    uint32_t distance_squared(const Position& other) const
+    {
+        return std::abs(x * other.x) + std::abs(y * other.y);
+    }
+
+    double distance(const Position& other) const
+    {
+        return std::sqrt(distance_squared(other));
+    }
 };
 
 struct Component
 {
+    // these should probably eventually be refactored to separate vectors
+    EntityHandle parent;
+};
+
+struct ScheduledComponent : Component
+{
+    uint64_t schedule = 0;
+};
+
+struct NameData : Component
+{
+    static const ComponentId id;
+
+    string name;
 };
 
 struct PositionData : Component
 {
     static const ComponentId id;
 
-    uint32_t x = 0;
-    uint32_t y = 0;
+    Position pos;
 };
 
 // This is probably unnecessary. Currently moving entities will have a
 // PathfindingData, and entities which can decide to move will have an
 // ActorData.
-struct MovableData : Component
+struct MovableData : ScheduledComponent
 {
     static const ComponentId id;
 };
 
-struct PlantData : Component
+struct PlantData : ScheduledComponent
 {
     static const ComponentId id;
 
@@ -94,7 +171,7 @@ struct InventoryData : Component
     int8_t food = 0;
 };
 
-struct CreatureData : Component
+struct CreatureData : ScheduledComponent
 {
     static const ComponentId id;
 
@@ -105,10 +182,12 @@ struct CreatureData : Component
 enum class Action : uint8_t
 {
     None,
+    Idle,
+    Move,
     Harvest,
 };
 
-struct ActorData : Component
+struct ActorData : ScheduledComponent
 {
     static const ComponentId id;
 
@@ -116,64 +195,12 @@ struct ActorData : Component
     EntityHandle target;
 };
 
-struct Position
-{
-    uint32_t x;
-    uint32_t y;
-    // uint32_t z;
-    // uint8_t __pad[4];
-};
-
-struct PathfindingData : Component
+struct PathfindingData : ScheduledComponent
 {
     static const ComponentId id;
 
-    // We only use one position at a time, so a list should be better 
+    // We only use one position at a time, so a list should be better
     list<Position> path;
-};
-
-#define CM_COMPONENT_DATA(CT) vector<CT> vec##CT; vector<EntityHandle> parent##CT;
-
-#define CM_COMPONENT_FUNCTIONS(CT) \
-    template<> ComponentHandle ComponentManager::addComponent<CT>(EntityHandle h) { \
-        vec##CT.emplace_back(); parent##CT.emplace_back(h); \
-        return static_cast<ComponentHandle>(vec##CT.size() - 1); } \
-    template<> CT* ComponentManager::getComponent<CT>(ComponentHandle h) { \
-        return &vec##CT[static_cast<size_t>(h)]; } \
-    template<> vector<CT>& ComponentManager::getVector() { return vec##CT; } \
-    template<> EntityHandle ComponentManager::getParent<CT>(ComponentHandle h) { return parent##CT[h]; } \
-    ;
-
-class ComponentManager
-{
-public:
-    ComponentManager()
-    {
-        vecPositionData.reserve(600000);
-        vecMovableData.reserve(100000);
-        vecPlantData.reserve(500000);
-        vecInventoryData.reserve(100000);
-        vecCreatureData.reserve(100000);
-    }
-
-    template<typename T>
-    ComponentHandle addComponent(EntityHandle h);
-
-    template<typename T>
-    T* getComponent(ComponentHandle h);
-
-    template<typename T>
-    vector<T>& getVector();
-
-    template<typename T>
-    EntityHandle getParent(ComponentHandle h);
-
-    CM_COMPONENT_DATA(PositionData);
-    CM_COMPONENT_DATA(MovableData);
-    CM_COMPONENT_DATA(PlantData);
-    CM_COMPONENT_DATA(InventoryData);
-    CM_COMPONENT_DATA(CreatureData);
-    CM_COMPONENT_DATA(ActorData);
 };
 
 template<typename T>
@@ -184,3 +211,47 @@ void printMemoryUsage(const vector<T>& v)
     cout << std::fixed << std::setprecision(2);
     cout << typeid(T).name() << "\t" << mem << " MiB" << endl;
 }
+
+struct Operation
+{
+    uint64_t timestamp;
+    std::function<void(void)> op;
+};
+
+// very simple, very fast, very specific
+// static size, concurrent write-only, then read
+template<typename T, size_t maxSize>
+class LocklessQueue
+{
+public:
+    LocklessQueue()
+    {
+        reset();
+    }
+
+    void push(T& obj)
+    {
+        size_t idx = _index++;
+        _data[idx] = obj;
+    }
+
+    auto begin()
+    {
+        return _data.begin();
+    }
+
+    auto end()
+    {
+        return _data.begin() + _index;
+    }
+
+    void reset()
+    {
+       _data.resize(maxSize);
+       _index = 0;
+    }
+
+private:
+    atomic<size_t> _index;
+    vector<T> _data;
+};
